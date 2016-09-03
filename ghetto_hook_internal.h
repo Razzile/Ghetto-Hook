@@ -14,8 +14,8 @@ typedef struct breakpoint {
   // possibly callback
 } breakpoint_t;
 
-struct core {
-  bool (*apply_breakpoint)(breakpoint_t bp);
-  bool (*reset_breakpoint)(breakpoint_t bp);
+typedef struct core {
+  bool (*install_breakpoint)(breakpoint_t *bp);
+  bool (*uninstall_breakpoint)(breakpoint_t *bp);
   void (*apply_redirection)(thread_state_t state);
-};
+} core;
