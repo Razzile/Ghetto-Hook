@@ -6,6 +6,13 @@
 
 #include "ghetto_hook.h"
 
+#define krncall(expr)                                                          \
+  do {                                                                         \
+    kern_return_t status = (expr);                                             \
+    if (status != KERN_SUCCESS)                                                \
+      return false;                                                            \
+  } while (false)
+
 typedef enum { HW_BREAKPOINT, SW_BREAKPOINT } breakpoint_type_t;
 
 typedef struct breakpoint {
