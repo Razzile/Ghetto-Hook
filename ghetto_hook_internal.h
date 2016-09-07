@@ -9,8 +9,11 @@
 #define krncall(expr)                                                          \
   do {                                                                         \
     kern_return_t status = (expr);                                             \
-    if (status != KERN_SUCCESS)                                                \
+    if (status != KERN_SUCCESS) {                                              \
       return false;                                                            \
+      fprintf(stderr, "mach error: " #expr " [%s]\n",                          \
+              mach_error_string(status));                                      \
+    }                                                                          \
   } while (false)
 
 typedef enum { HW_BREAKPOINT, SW_BREAKPOINT } breakpoint_type_t;
@@ -18,11 +21,18 @@ typedef enum { HW_BREAKPOINT, SW_BREAKPOINT } breakpoint_type_t;
 typedef struct breakpoint {
   breakpoint_type_t type;
   vm_address_t address;
-  // possibly callback
 } breakpoint_t;
+
+typedef struct breakpoint_store {
+  int size;
+  int capacity;
+  breakpoint_t *data;
+} breakpoint_store_t;
 
 typedef struct core {
   bool (*install_breakpoint)(breakpoint_t *bp);
   bool (*uninstall_breakpoint)(breakpoint_t *bp);
-  void (*apply_redirection)(thread_state_t state);
 } core;
+
+// TODO: all other internal function declarations
+breakpoint_t *ghetto_hook_lookup_breakpoint(vm_address_t target);
