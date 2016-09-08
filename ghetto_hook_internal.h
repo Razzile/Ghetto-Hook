@@ -10,9 +10,9 @@
   do {                                                                         \
     kern_return_t status = (expr);                                             \
     if (status != KERN_SUCCESS) {                                              \
-      return false;                                                            \
       fprintf(stderr, "mach error: " #expr " [%s]\n",                          \
               mach_error_string(status));                                      \
+      return false;                                                            \
     }                                                                          \
   } while (false)
 
