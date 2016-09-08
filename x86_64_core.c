@@ -4,6 +4,7 @@
 //  Copyright © 2016 satori. All rights reserved.
 //
 
+#include "x86_64_core.h"
 #include "ghetto_hook_internal.h"
 #include <pthread.h>
 #include <stdio.h>
@@ -70,7 +71,7 @@ void *x86_64_core_mach_server_thread(void *arg) {
   return NULL;
 }
 
-core *x86_64_core_create() {
+core *x86_64_core_create_core() {
   static core *core = NULL;
   if (!core) {
     core = malloc(sizeof(struct core));
@@ -247,6 +248,15 @@ kern_return_t x86_64_core_get_thread_list(mach_port_t *ignore,
   return status;
 }
 
+vm_address_t x86_64_core_get_thread_address(mach_port_t thread) {
+  x86_thread_state64_t thread_state;
+  mach_msg_type_number_t count;
+  thread_get_state(thread, x86_THREAD_STATE64, (thread_state_t)&thread_state,
+                   &count);
+
+  return thread_state.__rip & ~0x1;
+}
+
 void x86_64_core_apply_thread_redirection(mach_port_t thread,
                                           vm_address_t target) {
   x86_thread_state64_t thread_state;
@@ -264,11 +274,23 @@ void x86_64_core_apply_thread_redirection(mach_port_t thread,
                    x86_THREAD_STATE64_COUNT);
 }
 
-vm_address_t x86_64_core_get_thread_address(mach_port_t thread) {
-  x86_thread_state64_t thread_state;
-  mach_msg_type_number_t count;
-  thread_get_state(thread, x86_THREAD_STATE64, (thread_state_t)&thread_state,
-                   &count);
+bool x86_64_core_write_address(task_t task, vm_address_t address, void *data,
+                               size_t size, bool force) {
+  if (force) {
+    krncall(vm_protect(task, address, size, false,
+                       VM_PROT_READ | VM_PROT_WRITE | VM_PROT_EXECUTE |
+                           VM_PROT_COPY));
+    krncall(vm_write(task, address, (vm_offset_t)data, size));
 
-  return thread_state.__rip & ~0x1;
+    krncall(
+        vm_protect(task, address, size, false, VM_PROT_READ | VM_PROT_EXECUTE));
+  } else {
+    krncall(vm_write(task, address, (vm_offset_t)data, size));
+  }
+  return true;
+}
+
+bool x86_64_core_read_address(task_t task, vm_address_t address, void *data,
+                              size_t size) {
+  krncall(vm_read_overwrite(task, address, size, (vm_address_t)data, &size));
 }

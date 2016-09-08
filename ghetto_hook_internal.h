@@ -3,6 +3,7 @@
 //
 //  Copyright © 2016 satori. All rights reserved.
 //
+#pragma once
 
 #include "ghetto_hook.h"
 
