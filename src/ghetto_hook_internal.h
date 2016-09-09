@@ -3,9 +3,11 @@
 //
 //  Copyright © 2016 satori. All rights reserved.
 //
+
 #pragma once
 
-#include "ghetto_hook.h"
+#include <mach/mach.h>
+#include <stdbool.h>
 
 #define krncall(expr)                                                          \
   do {                                                                         \
@@ -22,6 +24,8 @@ typedef enum { HW_BREAKPOINT, SW_BREAKPOINT } breakpoint_type_t;
 typedef struct breakpoint {
   breakpoint_type_t type;
   vm_address_t address;
+  char *original; // unused for HW
+  int len;        // unused for HW
 } breakpoint_t;
 
 typedef struct breakpoint_store {
@@ -30,9 +34,12 @@ typedef struct breakpoint_store {
   breakpoint_t *data;
 } breakpoint_store_t;
 
+typedef bool (*install_breakpoint_function_t)(breakpoint_t *);
+typedef bool (*uninstall_breakpoint_function_t)(breakpoint_t *);
+
 typedef struct core {
-  bool (*install_breakpoint)(breakpoint_t *bp);
-  bool (*uninstall_breakpoint)(breakpoint_t *bp);
+  install_breakpoint_function_t install_func;
+  uninstall_breakpoint_function_t uninstall_func;
 } core;
 
 // TODO: all other internal function declarations

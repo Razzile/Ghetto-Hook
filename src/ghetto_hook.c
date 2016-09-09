@@ -11,7 +11,7 @@ breakpoint_store_t global_store;
 
 core *core_for_host() {
 #ifdef __x86_64__
-  return x86_64_core();
+  return x86_64_core_get_core();
 #endif
 }
 
@@ -74,5 +74,5 @@ bool ghetto_hook(vm_address_t target, vm_address_t replacement) {
   breakpoint_t *bp = malloc(sizeof(breakpoint_t));
   bp->address = target;
   bp->type = SW_BREAKPOINT;
-  core->install_breakpoint(bp);
+  core->install_func(bp);
 }

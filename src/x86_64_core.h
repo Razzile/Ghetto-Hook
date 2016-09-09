@@ -18,7 +18,7 @@ core *x86_64_core_create();
 
 void *x86_64_core_mach_server_thread(void *arg);
 
-core *x86_64_core_create_core();
+core *x86_64_core_get_core();
 bool x86_64_core_setup_core(); // possibly take a core* param
 
 kern_return_t x86_64_core_exception_callback(mach_port_t thread,

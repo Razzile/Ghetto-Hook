@@ -7,7 +7,9 @@
 #include "x86_64_core.h"
 #include "ghetto_hook_internal.h"
 #include <pthread.h>
+#include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 extern boolean_t mach_exc_server(mach_msg_header_t *, mach_msg_header_t *);
 
@@ -71,7 +73,7 @@ void *x86_64_core_mach_server_thread(void *arg) {
   return NULL;
 }
 
-core *x86_64_core_create_core() {
+core *x86_64_core_get_core() {
   static core *core = NULL;
   if (!core) {
     core = malloc(sizeof(struct core));
@@ -133,20 +135,31 @@ bool x86_64_core_install_breakpoint(breakpoint_t *bp) {
 
   switch (bp->type) {
   case SW_BREAKPOINT: {
-    // write 0xCC at addr
+    if (bp->original)
+      free(bp->original);
+
+    bp->original = malloc(1);
+    x86_64_core_read_address(mach_task_self(), bp->address, bp->original, 1);
+    return x86_64_core_install_sw_breakpoint(bp->address);
   } break;
 
   case HW_BREAKPOINT: {
-    // get slots left
-    // get thread states (exluding self)
-    // apply to dr7 and dr[n]
-
+    return x86_64_core_install_hw_breakpoint(bp->address);
   } break;
   }
 }
 
 bool x86_64_core_uninstall_breakpoint(breakpoint_t *bp) {
   // oh boy
+}
+
+bool x86_64_core_install_sw_breakpoint(vm_address_t address) {
+  static uint8_t opcode[] = {0xCC};
+  return x86_64_core_write_address(mach_task_self(), address, opcode, 1, 1);
+}
+
+bool x86_64_core_uninstall_sw_breakpoint(vm_address_t address, char *original) {
+  return x86_64_core_write_address(mach_task_self(), address, original, 1, 1);
 }
 
 int x86_64_core_get_hw_breakpoint_slots() { return 4; }
@@ -218,6 +231,67 @@ bool x86_64_core_install_hw_breakpoint(vm_address_t address) {
                              (thread_state_t)&debug_state,
                              x86_DEBUG_STATE64_COUNT));
     hw_bp_count++;
+  }
+}
+
+bool x86_64_core_uninstall_hw_breakpoint(vm_address_t address) {
+  mach_port_t exclude[] = {mach_thread_self()};
+  mach_port_t *threads;
+  size_t count;
+
+  x86_64_core_get_thread_list(exclude, 1, &threads, &count);
+
+  for (int i = 0; i < count; i++) {
+    x86_debug_state64_t debug_state;
+    mach_msg_type_number_t count = x86_DEBUG_STATE64_COUNT;
+    krncall(thread_get_state(threads[i], x86_DEBUG_STATE64,
+                             (thread_state_t)&debug_state, &count));
+
+    int index = -1;
+    if (debug_state.__dr0 == address)
+      index = 0;
+    if (debug_state.__dr1 == address)
+      index = 1;
+    if (debug_state.__dr2 == address)
+      index = 2;
+    if (debug_state.__dr3 == address)
+      index = 3;
+
+    struct dr7_ctx dr7 = *(struct dr7_ctx *)&debug_state.__dr7;
+
+    switch (index) {
+    case 0: {
+      dr7.flags_dr0 = 0;
+      debug_state.__dr0 = 0x0;
+      break;
+    }
+
+    case 1: {
+      dr7.flags_dr1 = 0;
+      debug_state.__dr1 = 0x0;
+      break;
+    }
+
+    case 2: {
+      dr7.flags_dr2 = 0;
+      debug_state.__dr2 = 0x0;
+      break;
+    }
+
+    case 3: {
+      dr7.flags_dr3 = 0;
+      debug_state.__dr3 = 0x0;
+      break;
+    }
+
+    default: { continue; }
+    }
+
+    debug_state.__dr7 = *(int *)&dr7;
+
+    krncall(thread_set_state(threads[i], x86_DEBUG_STATE64,
+                             (thread_state_t)&debug_state,
+                             x86_DEBUG_STATE64_COUNT));
   }
 }
 
