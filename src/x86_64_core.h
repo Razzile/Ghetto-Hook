@@ -8,7 +8,7 @@
 
 #include "ghetto_hook_internal.h"
 
-core *x86_64_core_create();
+core *x86_64_core_get_core();
 
 // typedef struct x86_64_core {
 //   bool (*install_breakpoint)(breakpoint_t *bp);
@@ -28,9 +28,11 @@ bool x86_64_core_install_breakpoint(breakpoint_t *bp);
 bool x86_64_core_uninstall_breakpoint(breakpoint_t *bp);
 
 bool x86_64_core_install_sw_breakpoint(vm_address_t address);
+bool x86_64_core_uninstall_sw_breakpoint(vm_address_t address, char *original);
 
 int x86_64_core_get_hw_breakpoint_slots();
 bool x86_64_core_install_hw_breakpoint(vm_address_t address);
+bool x86_64_core_uninstall_hw_breakpoint(vm_address_t address);
 
 kern_return_t x86_64_core_get_thread_list(mach_port_t *ignore,
                                           size_t ignore_count,

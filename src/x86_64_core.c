@@ -77,6 +77,9 @@ core *x86_64_core_get_core() {
   static core *core = NULL;
   if (!core) {
     core = malloc(sizeof(struct core));
+    core->install_func = x86_64_core_install_breakpoint;
+    core->uninstall_func = x86_64_core_uninstall_breakpoint;
+    x86_64_core_setup_core();
   }
   return core;
 }
@@ -98,7 +101,7 @@ bool x86_64_core_setup_core() {
   krncall(mach_port_insert_right(task, exc_port, exc_port,
                                  MACH_MSG_TYPE_MAKE_SEND));
 
-  krncall(task_get_exception_ports(task, EXC_MASK_ALL, &mask, &maskCount,
+  krncall(task_get_exception_ports(task, EXC_MASK_BREAKPOINT, &mask, &maskCount,
                                    &handler, &behavior, &flavor));
 
   if ((err = pthread_create(&exception_thread, NULL,
@@ -125,8 +128,10 @@ kern_return_t x86_64_core_exception_callback(mach_port_t thread,
   vm_address_t exception_address = x86_64_core_get_thread_address(thread);
   breakpoint_t *bp = ghetto_hook_lookup_breakpoint(exception_address);
   if (bp) {
-    x86_64_core_apply_thread_redirection(thread, bp->address);
+    x86_64_core_apply_thread_redirection(thread, bp->replacement);
+    return KERN_SUCCESS;
   }
+  return KERN_FAILURE;
 }
 
 bool x86_64_core_install_breakpoint(breakpoint_t *bp) {
@@ -135,9 +140,9 @@ bool x86_64_core_install_breakpoint(breakpoint_t *bp) {
 
   switch (bp->type) {
   case SW_BREAKPOINT: {
-    if (bp->original)
+    if (bp->original) {
       free(bp->original);
-
+    }
     bp->original = malloc(1);
     x86_64_core_read_address(mach_task_self(), bp->address, bp->original, 1);
     return x86_64_core_install_sw_breakpoint(bp->address);
@@ -150,7 +155,22 @@ bool x86_64_core_install_breakpoint(breakpoint_t *bp) {
 }
 
 bool x86_64_core_uninstall_breakpoint(breakpoint_t *bp) {
-  // oh boy
+  if (!bp)
+    return false;
+
+  switch (bp->type) {
+  case SW_BREAKPOINT: {
+    if (bp->original) {
+      return x86_64_core_uninstall_sw_breakpoint(bp->address, bp->original);
+    } else
+      return false;
+  }
+  case HW_BREAKPOINT: {
+    return x86_64_core_uninstall_hw_breakpoint(bp->address);
+  }
+
+  default: { return false; }
+  }
 }
 
 bool x86_64_core_install_sw_breakpoint(vm_address_t address) {
@@ -232,6 +252,7 @@ bool x86_64_core_install_hw_breakpoint(vm_address_t address) {
                              x86_DEBUG_STATE64_COUNT));
     hw_bp_count++;
   }
+  return true;
 }
 
 bool x86_64_core_uninstall_hw_breakpoint(vm_address_t address) {
@@ -293,6 +314,7 @@ bool x86_64_core_uninstall_hw_breakpoint(vm_address_t address) {
                              (thread_state_t)&debug_state,
                              x86_DEBUG_STATE64_COUNT));
   }
+  return true;
 }
 
 kern_return_t x86_64_core_get_thread_list(mach_port_t *ignore,
@@ -324,17 +346,16 @@ kern_return_t x86_64_core_get_thread_list(mach_port_t *ignore,
 
 vm_address_t x86_64_core_get_thread_address(mach_port_t thread) {
   x86_thread_state64_t thread_state;
-  mach_msg_type_number_t count;
+  mach_msg_type_number_t count = x86_THREAD_STATE64_COUNT;
   thread_get_state(thread, x86_THREAD_STATE64, (thread_state_t)&thread_state,
                    &count);
-
   return thread_state.__rip & ~0x1;
 }
 
 void x86_64_core_apply_thread_redirection(mach_port_t thread,
                                           vm_address_t target) {
   x86_thread_state64_t thread_state;
-  mach_msg_type_number_t count;
+  mach_msg_type_number_t count = x86_THREAD_STATE64_COUNT;
   thread_get_state(thread, x86_THREAD_STATE64, (thread_state_t)&thread_state,
                    &count);
 
@@ -367,4 +388,5 @@ bool x86_64_core_write_address(task_t task, vm_address_t address, void *data,
 bool x86_64_core_read_address(task_t task, vm_address_t address, void *data,
                               size_t size) {
   krncall(vm_read_overwrite(task, address, size, (vm_address_t)data, &size));
+  return true;
 }

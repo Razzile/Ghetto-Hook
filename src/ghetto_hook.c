@@ -9,6 +9,8 @@
 
 breakpoint_store_t global_store;
 
+extern core *x86_64_core_get_core();
+
 core *core_for_host() {
 #ifdef __x86_64__
   return x86_64_core_get_core();
@@ -58,7 +60,7 @@ void ghetto_hook_delete_breakpoint(int index) {
 
 breakpoint_t *ghetto_hook_lookup_breakpoint(vm_address_t target) {
   for (int i = 0; i < global_store.size; i++) {
-    if ((global_store.data + i)->address == target) {
+    if (global_store.data[i].address == target) {
       return global_store.data + i;
     }
   }
@@ -73,6 +75,10 @@ bool ghetto_hook(vm_address_t target, vm_address_t replacement) {
   // TODO: a core_create_breakpoint() func
   breakpoint_t *bp = malloc(sizeof(breakpoint_t));
   bp->address = target;
+  bp->replacement = replacement;
   bp->type = SW_BREAKPOINT;
-  core->install_func(bp);
+  bp->original = NULL;
+  bp->len = 0;
+  ghetto_hook_save_breakpoint(*bp);
+  return core->install_func(bp);
 }

@@ -24,6 +24,7 @@ typedef enum { HW_BREAKPOINT, SW_BREAKPOINT } breakpoint_type_t;
 typedef struct breakpoint {
   breakpoint_type_t type;
   vm_address_t address;
+  vm_address_t replacement;
   char *original; // unused for HW
   int len;        // unused for HW
 } breakpoint_t;
