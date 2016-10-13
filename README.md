@@ -1,4 +1,6 @@
 # Ghetto Hook
+![](https://pbs.twimg.com/media/CsEWAA_WAAAVi-4.jpg)
+
 A PoC library that aims to showcase function hooking on multiple architectures with minimal patching
 to executable code (a maximum of 1 instruction patch needed, although it can be achieved with none).
 
